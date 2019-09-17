@@ -4,7 +4,7 @@
 #include <assert.h> // needed for asserts
 #include "dmm.h"
 
-/* 
+/*
  * The lab handout and code guide you to a solution with a single free list containing all free
  * blocks (and only the blocks that are free) sorted by starting address.  Every block (allocated
  * or free) has a header (type metadata_t) with list pointers, but no footers are defined.
@@ -12,7 +12,7 @@
  * reading.
  */
 
-/* 
+/*
  *size_t is the return type of the sizeof operator.   size_t type is large enough to represent
  * the size of the largest possible object (equivalently, the maximum virtual address).
  */
@@ -79,9 +79,9 @@ void* dmalloc(size_t numbytes) {
             return ((void*) curr)+METADATA_T_ALIGNED; //return curr's spot but without the header (useless to user)
 
         }
+        curr=curr->next;
         return NULL;
 
-        //*****TALK TO TUTOR ABOUT OTHER POSSIBLE CASES???
     }
 
 
@@ -90,7 +90,60 @@ void* dmalloc(size_t numbytes) {
 
 void dfree(void* ptr) {
   /* your code here */
+  // dmalloc only had ptr to the information useful to the user
+  metadata_t* first = metadata_t* (ptr-METADATA_T_ALIGNED);
+  // header points as a copy (similar to dmalloc)
+  metadata_t* block = freelist;
+
+    if (freelist==NULL) freelist = first;
+
+
+    while(block!= NULL) {
+        //check that the address of block is after the address that first points to
+        if(block-first > 0) {
+            //check to see if first is before the first block
+            //inserted at front, first's next points to block, and then block's prev is first not NULL
+            if (block->prev == NULL){
+                freelist=first;
+                first->next=block;
+                block->prev=first;
+            }
+            
+            //if its in the middle
+            else{
+              block->prev->next=first;
+              first->prev=block->prev;
+              first->next=block;
+              block->prev=first;
+            }
+        }
+        //check to see if its at the end
+        else if(block-first < 0 && block->next==NULL){
+              block->next = first;
+              first->prev = block;
+          }
+          //iterate through freelist
+        block=block->next;
+       }
+       //
+    if (first + METADATA_T_ALIGNED + first->size == first->next) coalesce((void*) first);
+
+}    
+//helper function to join blocks with contiguous addresses
+void coalesce(void* ptr) {
+  //change metadata to be size of both
+  ptr->size += ptr->next->size + METADATA_T_ALIGNED;
+  //ptr points to next block
+  ptr->next = ptr->next->next;
+  //the far block (ptr next next) prev has to point to the ptr
+  ptr->next->next->prev = ptr;
+  //ptr->next needs to be "removed"
+  ptr->next->prev = NULL;
+  ptr->next->next = NULL;
 }
+
+
+
 
 /*
  * Allocate heap_region slab with a suitable syscall. Treat it as one large free block on freelist.
